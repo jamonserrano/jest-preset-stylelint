@@ -1,12 +1,52 @@
 'use strict';
 
+// @ts-ignore
 const basicChecks = require('stylelint').basicChecks;
 const stylelint = require('stylelint').lint;
 const util = require('util');
 
 jest.mock('./getOsEol', () => () => '\n');
 
-global.testRule = (rule, schema) => {
+/**
+ * @typedef {object} AcceptCase
+ * @property {string} code
+ * @property {string=} description
+ * @property {boolean=} only
+ * @property {boolean=} skip
+ */
+
+/**
+ * @typedef {object} RejectCase
+ * @property {string} code
+ * @property {string=} fixed
+ * @property {boolean=} unfixable
+ * @property {string=} description
+ * @property {string} message
+ * @property {number=} line
+ * @property {number=} column
+ * @property {RejectCaseWarning[]=} warnings
+ */
+
+/**
+ * @typedef {object} RejectCaseWarning
+ * @property {string} message
+ * @property {number=} line
+ * @property {number=} column
+ */
+
+/**
+ * @typedef {object} TestRuleSchema
+ * @property {string[]} plugins
+ * @property {string} ruleName
+ * @property {any} syntax
+ * @property {array} config
+ * @property {boolean=} fix
+ * @property {boolean=} skipBasicChecks
+ * @property {AcceptCase[]=} accept
+ * @property {RejectCase[]=} reject
+ */
+
+global.testRule = (rule, /** @type {TestRuleSchema} */ schema) => {
 	describe(`${schema.ruleName}`, () => {
 		const stylelintConfig = {
 			plugins: schema.plugins,
@@ -24,8 +64,8 @@ global.testRule = (rule, schema) => {
 		setupTestCases({
 			name: 'accept',
 			cases: passingTestCases,
-			schema,
-			comparisons: (testCase) => async () => {
+			config: schema.config,
+			comparisons: (/** @type {AcceptCase} */ testCase) => async () => {
 				const options = {
 					code: testCase.code,
 					config: stylelintConfig,
@@ -35,6 +75,7 @@ global.testRule = (rule, schema) => {
 				const output = await stylelint(options);
 
 				expect(output.results[0].warnings).toEqual([]);
+				// @ts-ignore
 				expect(output.results[0].parseErrors).toEqual([]);
 
 				if (!schema.fix) return;
@@ -50,8 +91,8 @@ global.testRule = (rule, schema) => {
 		setupTestCases({
 			name: 'reject',
 			cases: schema.reject,
-			schema,
-			comparisons: (testCase) => async () => {
+			config: schema.config,
+			comparisons: (/** @type {RejectCase} */ testCase) => async () => {
 				const options = {
 					code: testCase.code,
 					config: stylelintConfig,
@@ -62,12 +103,14 @@ global.testRule = (rule, schema) => {
 
 				const actualWarnings = outputAfterLint.results[0].warnings;
 
+				// @ts-ignore
 				expect(outputAfterLint.results[0].parseErrors).toEqual([]);
 				expect(actualWarnings).toHaveLength(testCase.warnings ? testCase.warnings.length : 1);
 
 				(testCase.warnings || [testCase]).forEach((expected, i) => {
 					const warning = actualWarnings[i];
 
+					// @ts-ignore
 					expect(expected).toHaveMessage();
 
 					expect(warning.text).toBe(expected.message);
@@ -115,12 +158,14 @@ global.testRule = (rule, schema) => {
 				expect(outputAfterLintOnFixedCode.results[0].warnings).toEqual(
 					outputAfterFix.results[0].warnings,
 				);
+				// @ts-ignore
 				expect(outputAfterLintOnFixedCode.results[0].parseErrors).toEqual([]);
 			},
 		});
 	});
 
 	expect.extend({
+		// @ts-ignore
 		toHaveMessage(testCase) {
 			if (testCase.message === undefined) {
 				return {
@@ -136,14 +181,26 @@ global.testRule = (rule, schema) => {
 	});
 };
 
-function setupTestCases({ name, cases, schema, comparisons }) {
+/**
+ * @callback Comparisons
+ * @param {AcceptCase | RejectCase} testCase
+ */
+
+/**
+ * @param {Object} args
+ * @param {string} args.name
+ * @param {AcceptCase[] | RejectCase[]} args.cases
+ * @param {TestRuleSchema["config"]} args.config
+ * @param {Comparisons} args.comparisons
+ */
+function setupTestCases({ name, cases, config, comparisons }) {
 	if (cases && cases.length) {
 		describe(name, () => {
 			cases.forEach((testCase) => {
 				if (testCase) {
 					const spec = testCase.only ? it.only : testCase.skip ? it.skip : it;
 
-					describe(`${util.inspect(schema.config)}`, () => {
+					describe(`${util.inspect(config)}`, () => {
 						describe(`${util.inspect(testCase.code)}`, () => {
 							spec(testCase.description || 'no description', comparisons(testCase));
 						});

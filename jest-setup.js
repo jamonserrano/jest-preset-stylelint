@@ -1,7 +1,7 @@
 'use strict';
 
-jest.mock('stylelint/lib/utils/getOsEol', () => () => '\n');
-
 const getTestRule = require('./getTestRule');
+
+jest.mock('stylelint/lib/utils/getOsEol', () => () => '\n');
 
 global.testRule = getTestRule();

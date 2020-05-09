@@ -3,6 +3,8 @@
 const util = require('util');
 const { basicChecks, lint } = require('stylelint');
 
+jest.mock('stylelint/lib/utils/getOsEol', () => () => '\n');
+
 function getTestRule(options = {}) {
 	return function testRule(schema) {
 		describe(`${schema.ruleName}`, () => {
